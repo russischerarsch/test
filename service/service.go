@@ -116,9 +116,7 @@ func (q *QuoteService) fetchPrice(ctx context.Context, pair string) (float64, er
 		return 0, fmt.Errorf("API service returned %d status code", resp.StatusCode)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return 0, fmt.Errorf("API service returned %d status code\n", resp.StatusCode)
-	}
+
 	var info struct {
 		Success bool               `json:"success"`
 		Rates   map[string]float64 `json:"rates"`
