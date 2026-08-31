@@ -146,18 +146,12 @@ func (q *QuoteService) fetchPrice(ctx context.Context, pair string) (float64, er
 }
 func validatePair(pair string) error {
 	if len(pair) != 6 {
-		return fmt.Errorf(
-			"pair must have 6 letters: %w",
-			apperrors.ErrInvalidPairFormat,
-		)
+		return fmt.Errorf("pair must have 6 letters: %w", apperrors.ErrInvalidPairFormat)
 	}
 
 	for _, r := range pair {
 		if r < 'A' || r > 'Z' {
-			return fmt.Errorf(
-				"pair must contain uppercase letters: %w",
-				apperrors.ErrInvalidPairFormat,
-			)
+			return fmt.Errorf("pair must contain uppercase letters: %w", apperrors.ErrInvalidPairFormat)
 		}
 	}
 

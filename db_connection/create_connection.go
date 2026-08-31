@@ -42,8 +42,7 @@ func CreateConnection(ctx context.Context) (*pgxpool.Pool, error) {
 	`
 	_, err = pool.Exec(ctx, query)
 	if err != nil {
-		pool.Close()
-		return nil, err
+		return nil, fmt.Errorf("failed to create table, %w", err)
 	}
 	return pool, nil
 }
