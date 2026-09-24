@@ -3,7 +3,6 @@ package service
 import (
 	apperrors "PlataTest/app_errors"
 	"PlataTest/domain"
-	"PlataTest/repository"
 	"context"
 	"encoding/json"
 	"errors"
@@ -16,14 +15,20 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+type Quote interface {
+	CreateQuote(ctx context.Context, pair string) (int, error)
+	GetLatestQuote(ctx context.Context, pair string) (*domain.Quote, error)
+	GetQuoteById(ctx context.Context, id int) (*domain.Quote, error)
+	UpdateQuote(ctx context.Context, id int, price float64) error
+	UpdateStatus(ctx context.Context, id int, status string) error
+}
 type QuoteService struct {
-	repo   *repository.Repository
+	repo   Quote
 	client *http.Client
 }
 
-func CreateService(repo *repository.Repository) *QuoteService {
+func CreateService(repo Quote) *QuoteService {
 	return &QuoteService{
-		repo: repo,
 		client: &http.Client{
 			Timeout: 10 * time.Second,
 		}}
@@ -78,7 +83,7 @@ func (q *QuoteService) GetLatestQuote(ctx context.Context, pair string) (*domain
 }
 
 func (q *QuoteService) updatePrice(ctx context.Context, id int, pair string) error {
-	price, err := q.fetchPrice(ctx, pair)
+	price, err := q.FetchPrice(ctx, pair)
 	if err != nil {
 		if updateErr := q.repo.UpdateStatus(ctx, id, "failed"); updateErr != nil {
 			return fmt.Errorf("update quote: %w; update status: %v", err, updateErr)
@@ -94,7 +99,7 @@ func (q *QuoteService) updatePrice(ctx context.Context, id int, pair string) err
 	return nil
 }
 
-func (q *QuoteService) fetchPrice(ctx context.Context, pair string) (float64, error) {
+func (q *QuoteService) FetchPrice(ctx context.Context, pair string) (float64, error) {
 	first := pair[:3]
 	second := pair[3:]
 	var ApiKey string
