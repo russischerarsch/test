@@ -1,11 +1,16 @@
 package http
 
-import "github.com/gin-gonic/gin"
+import (
+	"net/http"
+)
 
-func SetupRouter(handlers *Handlers) *gin.Engine {
-	r := gin.Default()
-	r.POST("/api/quotes", handlers.CreateQuoteHandler)
-	r.GET("/api/quotes/latest", handlers.GetLatestQuote)
-	r.GET("/api/quotes/:id", handlers.GetByIdHandler)
-	return r
+func SetupRouter(handlers *Handlers) http.Handler {
+
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("POST /api/quotes", handlers.CreateQuote)
+	mux.HandleFunc("GET /api/quotes/latest", handlers.GetLatestQuote)
+	mux.HandleFunc("GET /api/quotes/{id}", handlers.GetById)
+
+	return mux
 }

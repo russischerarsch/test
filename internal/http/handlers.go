@@ -8,8 +8,6 @@ import (
 	"log"
 	"net/http"
 	"strconv"
-
-	"github.com/gin-gonic/gin"
 )
 
 type Service interface {
@@ -26,7 +24,15 @@ func CreateHandler(service Service) *Handlers {
 	return &Handlers{service: service}
 }
 
+type errorResponse struct {
+	Message string `json:"error"`
+}
+
 func (h *Handlers) CreateQuote(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method now allowed", http.StatusMethodNotAllowed)
+		return
+	}
 	var req struct {
 		Pair string `json:"pair"`
 	}
@@ -43,68 +49,68 @@ func (h *Handlers) CreateQuote(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to create quote, err: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
-	r.Header.Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	if err := json.NewEncoder(w).Encode(id); err != nil {
 		log.Printf("failed to send id, err %v", err)
 	}
 }
 
-func (h *Handlers) CreateQuoteHandler(c *gin.Context) {
-
-	if err := c.BindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+func (h *Handlers) GetById(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method now allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	quoteId, err := h.service.CreateQuote(c.Request.Context(), req.Pair)
+	idStr := r.PathValue("id")
+	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		if errors.Is(err, domain.ErrInvalidPairFormat) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		http.Error(w, "failed to convert path id into int, err "+err.Error(), http.StatusBadRequest)
 		return
 	}
-	c.JSON(http.StatusCreated, gin.H{"id": quoteId})
-}
-
-func (h *Handlers) GetByIdHandler(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
-		return
-	}
-	quote, err := h.service.GetQuote(c.Request.Context(), id)
+	quote, err := h.service.GetQuote(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "quote not found",
-			})
+			http.Error(w, "quote not found", http.StatusNotFound)
 			return
 		}
-
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": err.Error(),
-		})
+		http.Error(w, "failed to find quote, err "+err.Error(), http.StatusInternalServerError)
 		return
 	}
-	c.JSON(http.StatusOK, quote)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(quote); err != nil {
+		log.Printf("failed to send quote, err %v", err)
+	}
 }
 
-func (h *Handlers) GetLatestQuote(c *gin.Context) {
-	pair := c.Query("pair")
+func (h *Handlers) GetLatestQuote(w http.ResponseWriter, r *http.Request) {
+	pair := r.URL.Query().Get("pair")
 	if pair == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "pair is required"})
+		writeJSONError(w, http.StatusBadRequest, "path is empty")
 		return
 	}
-	quote, err := h.service.GetLatestQuote(c.Request.Context(), pair)
+	quote, err := h.service.GetLatestQuote(r.Context(), pair)
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "no quote avaiable"})
+			writeJSONError(w, http.StatusNotFound, "quoutes not found")
+			log.Printf("quote not found, err %v", err)
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		writeJSONError(w, http.StatusInternalServerError, "failed to find quote")
+		log.Printf("failed to find quote, err %v", err)
 		return
 	}
-	c.JSON(http.StatusOK, quote)
+	writeJSON(w, http.StatusOK)
+}
+
+func writeJSON(w http.ResponseWriter, status int, v interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		log.Printf("failed to write response: %v", err)
+	}
+}
+
+func writeJSONError(w http.ResponseWriter, status int, msg string) {
+	writeJSON(w, status, errorResponse{Message: msg})
 }
