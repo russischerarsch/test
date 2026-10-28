@@ -1,10 +1,10 @@
 package main
 
 import (
-	dbconnection "PlataTest/db_connection"
-	"PlataTest/http"
-	"PlataTest/repository"
-	"PlataTest/service"
+	dbconnection "PlataTest/internal/db_connection"
+	"PlataTest/internal/http"
+	"PlataTest/internal/repository"
+	"PlataTest/internal/service"
 	"context"
 	"fmt"
 )

@@ -1,7 +1,7 @@
 package repository
 
 import (
-	"PlataTest/domain"
+	"PlataTest/internal/domain"
 	"context"
 	"fmt"
 	"time"

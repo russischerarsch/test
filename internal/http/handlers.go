@@ -1,34 +1,64 @@
 package http
 
 import (
-	apperrors "PlataTest/app_errors"
-	"PlataTest/service"
+	"PlataTest/internal/domain"
+	"context"
+	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
 
-type Handlers struct {
-	service *service.QuoteService
+type Service interface {
+	CreateQuote(ctx context.Context, pair string) (int, error)
+	GetLatestQuote(ctx context.Context, pair string) (*domain.Quote, error)
+	GetQuote(ctx context.Context, id int) (*domain.Quote, error)
 }
 
-func CreateHandler(service *service.QuoteService) *Handlers {
+type Handlers struct {
+	service Service
+}
+
+func CreateHandler(service Service) *Handlers {
 	return &Handlers{service: service}
 }
 
-func (h *Handlers) CreateQuoteHandler(c *gin.Context) {
+func (h *Handlers) CreateQuote(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Pair string `json:"pair"`
 	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "failed to parse pair, err: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	id, err := h.service.CreateQuote(r.Context(), req.Pair)
+	if err != nil {
+		if errors.Is(err, domain.ErrInvalidPairFormat) {
+			http.Error(w, "invalid pair format, err: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		http.Error(w, "failed to create quote, err: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	r.Header.Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	if err := json.NewEncoder(w).Encode(id); err != nil {
+		log.Printf("failed to send id, err %v", err)
+	}
+}
+
+func (h *Handlers) CreateQuoteHandler(c *gin.Context) {
+
 	if err := c.BindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	quoteId, err := h.service.CreateQuote(c.Request.Context(), req.Pair)
 	if err != nil {
-		if errors.Is(err, apperrors.ErrInvalidPairFormat) {
+		if errors.Is(err, domain.ErrInvalidPairFormat) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
@@ -46,7 +76,7 @@ func (h *Handlers) GetByIdHandler(c *gin.Context) {
 	}
 	quote, err := h.service.GetQuote(c.Request.Context(), id)
 	if err != nil {
-		if errors.Is(err, apperrors.ErrNotFound) {
+		if errors.Is(err, domain.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": "quote not found",
 			})
@@ -69,7 +99,7 @@ func (h *Handlers) GetLatestQuote(c *gin.Context) {
 	}
 	quote, err := h.service.GetLatestQuote(c.Request.Context(), pair)
 	if err != nil {
-		if errors.Is(err, apperrors.ErrNotFound) {
+		if errors.Is(err, domain.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "no quote avaiable"})
 			return
 		}

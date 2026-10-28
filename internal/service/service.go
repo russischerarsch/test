@@ -1,8 +1,7 @@
 package service
 
 import (
-	apperrors "PlataTest/app_errors"
-	"PlataTest/domain"
+	"PlataTest/internal/domain"
 	"context"
 	"encoding/json"
 	"errors"
@@ -29,13 +28,14 @@ type QuoteService struct {
 
 func CreateService(repo Quote) *QuoteService {
 	return &QuoteService{
+		repo: repo,
 		client: &http.Client{
 			Timeout: 10 * time.Second,
 		}}
 }
 func (q *QuoteService) CreateQuote(ctx context.Context, pair string) (int, error) {
 	if err := validatePair(pair); err != nil {
-		return 0, apperrors.ErrInvalidPairFormat
+		return 0, domain.ErrInvalidPairFormat
 	}
 
 	id, err := q.repo.CreateQuote(ctx, pair)
@@ -59,7 +59,7 @@ func (q *QuoteService) GetQuote(ctx context.Context, id int) (*domain.Quote, err
 	quote, err := q.repo.GetQuoteById(ctx, id)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, apperrors.ErrNotFound
+			return nil, domain.ErrNotFound
 		}
 
 		return nil, err
@@ -70,12 +70,12 @@ func (q *QuoteService) GetQuote(ctx context.Context, id int) (*domain.Quote, err
 
 func (q *QuoteService) GetLatestQuote(ctx context.Context, pair string) (*domain.Quote, error) {
 	if err := validatePair(pair); err != nil {
-		return nil, apperrors.ErrInvalidPairFormat
+		return nil, domain.ErrInvalidPairFormat
 	}
 	quote, err := q.repo.GetLatestQuote(ctx, pair)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, apperrors.ErrNotFound
+			return nil, domain.ErrNotFound
 		}
 		return nil, err
 	}
@@ -115,7 +115,7 @@ func (q *QuoteService) FetchPrice(ctx context.Context, pair string) (float64, er
 	}
 	resp, err := q.client.Do(req)
 	if err != nil {
-		return 0, apperrors.ErrAPINotAvailable
+		return 0, domain.ErrAPINotAvailable
 	}
 	if resp.StatusCode != http.StatusOK {
 		return 0, fmt.Errorf("API service returned %d status code", resp.StatusCode)
@@ -151,12 +151,12 @@ func (q *QuoteService) FetchPrice(ctx context.Context, pair string) (float64, er
 }
 func validatePair(pair string) error {
 	if len(pair) != 6 {
-		return fmt.Errorf("pair must have 6 letters: %w", apperrors.ErrInvalidPairFormat)
+		return fmt.Errorf("pair must have 6 letters: %w", domain.ErrInvalidPairFormat)
 	}
 
 	for _, r := range pair {
 		if r < 'A' || r > 'Z' {
-			return fmt.Errorf("pair must contain uppercase letters: %w", apperrors.ErrInvalidPairFormat)
+			return fmt.Errorf("pair must contain uppercase letters: %w", domain.ErrInvalidPairFormat)
 		}
 	}
 
