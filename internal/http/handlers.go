@@ -20,7 +20,7 @@ type Handlers struct {
 	service Service
 }
 
-func CreateHandler(service Service) *Handlers {
+func NewHandler(service Service) *Handlers {
 	return &Handlers{service: service}
 }
 
@@ -29,78 +29,63 @@ type errorResponse struct {
 }
 
 func (h *Handlers) CreateQuote(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method now allowed", http.StatusMethodNotAllowed)
-		return
-	}
 	var req struct {
 		Pair string `json:"pair"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "failed to parse pair, err: "+err.Error(), http.StatusBadRequest)
+		writeJSONError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 	id, err := h.service.CreateQuote(r.Context(), req.Pair)
 	if err != nil {
 		if errors.Is(err, domain.ErrInvalidPairFormat) {
-			http.Error(w, "invalid pair format, err: "+err.Error(), http.StatusBadRequest)
+			writeJSONError(w, http.StatusBadRequest, "invalid format")
 			return
 		}
-		http.Error(w, "failed to create quote, err: "+err.Error(), http.StatusInternalServerError)
+		writeJSONError(w, http.StatusInternalServerError, "internal error")
+		log.Printf("failed to create quote, err %v", err)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	if err := json.NewEncoder(w).Encode(id); err != nil {
-		log.Printf("failed to send id, err %v", err)
-	}
+	writeJSON(w, http.StatusCreated, id)
 }
 
 func (h *Handlers) GetById(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "method now allowed", http.StatusMethodNotAllowed)
-		return
-	}
 	idStr := r.PathValue("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		http.Error(w, "failed to convert path id into int, err "+err.Error(), http.StatusBadRequest)
+		writeJSONError(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	quote, err := h.service.GetQuote(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
-			http.Error(w, "quote not found", http.StatusNotFound)
+			writeJSONError(w, http.StatusNotFound, "quote not found")
 			return
 		}
-		http.Error(w, "failed to find quote, err "+err.Error(), http.StatusInternalServerError)
+		writeJSONError(w, http.StatusInternalServerError, "internal error")
+		log.Printf("failed to get quote, err %v", err)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(quote); err != nil {
-		log.Printf("failed to send quote, err %v", err)
-	}
+	writeJSON(w, http.StatusOK, quote)
 }
 
 func (h *Handlers) GetLatestQuote(w http.ResponseWriter, r *http.Request) {
 	pair := r.URL.Query().Get("pair")
 	if pair == "" {
-		writeJSONError(w, http.StatusBadRequest, "path is empty")
+		writeJSONError(w, http.StatusBadRequest, "pair is empty")
 		return
 	}
 	quote, err := h.service.GetLatestQuote(r.Context(), pair)
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
-			writeJSONError(w, http.StatusNotFound, "quoutes not found")
-			log.Printf("quote not found, err %v", err)
+			writeJSONError(w, http.StatusNotFound, "quotes not found")
 			return
 		}
-		writeJSONError(w, http.StatusInternalServerError, "failed to find quote")
+		writeJSONError(w, http.StatusInternalServerError, "internal error")
 		log.Printf("failed to find quote, err %v", err)
 		return
 	}
-	writeJSON(w, http.StatusOK)
+	writeJSON(w, http.StatusOK, quote)
 }
 
 func writeJSON(w http.ResponseWriter, status int, v interface{}) {
