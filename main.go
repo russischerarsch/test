@@ -18,7 +18,6 @@ import (
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 )
 
-// ПРИВЕСТИ ВСЕ ПАРЫ К НИЖНЕМУ РЕГИСТРУ И ЗАКИНУТЬ В БД НА УНИК КЛЮЧ
 func main() {
 	url := os.Getenv("DATABASE_URL")
 	if url == "" {
@@ -26,7 +25,7 @@ func main() {
 	}
 	apiKey := os.Getenv("API_KEY")
 	if apiKey == "" {
-		apiKey = "84343d3b62c279fb5c47f52fbdf034ae"
+		apiKey = "cf1c2c2af99770437a22aeb1e7b2d469"
 
 	}
 	ctx := context.Background()

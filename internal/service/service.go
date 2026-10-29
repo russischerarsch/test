@@ -18,7 +18,7 @@ type Repository interface {
 	GetQuoteById(ctx context.Context, id int) (*domain.Quote, error)
 	UpdateQuote(ctx context.Context, q *domain.Quote) error
 	UpdateStatus(ctx context.Context, pair string, status string) error
-	GetToUpdateQuotes(ctx context.Context) ([]domain.Quote, error)
+	GetToUpdateQuote(ctx context.Context) (domain.Quote, error)
 }
 type QuoteService struct {
 	repo   Repository
@@ -63,7 +63,8 @@ func (q *QuoteService) GetLatestQuote(ctx context.Context, pair string) (*domain
 	if err := validatePair(pair); err != nil {
 		return nil, domain.ErrInvalidPairFormat
 	}
-	quote, err := q.repo.GetLatestQuote(ctx, pair)
+	pairLC := strings.ToLower(pair)
+	quote, err := q.repo.GetLatestQuote(ctx, pairLC)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, domain.ErrNotFound

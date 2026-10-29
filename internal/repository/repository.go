@@ -3,9 +3,11 @@ package repository
 import (
 	"PlataTest/internal/domain"
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -26,22 +28,26 @@ func (r *Repository) CreateQuote(ctx context.Context, pair string) (int, error) 
 	RETURNING id
 	`
 	err := r.pool.QueryRow(ctx, query, pair, time.Now()).Scan(&id)
-	return id, err
+	var pgError *pgconn.PgError
+	if errors.As(err, &pgError) && pgError.Code == "23505" { // номер ошибки дубликата
+		return 0, fmt.Errorf("%w, pair %s", domain.ErrAlreadyExists, pair)
+	}
+	return id, nil
 }
 func (r *Repository) GetLatestQuote(ctx context.Context, pair string) (*domain.Quote, error) {
 	var quote domain.Quote
 	query := `
-	SELECT id, pair, price, updated_at, status FROM quotes
-	WHERE pair = $1 and status = 'completed'
-	ORDER BY updated_at DESC
-	LIMIT 1
+	SELECT id, pair, price, updated_at, status, created_at FROM quotes
+	WHERE pair = $1
 	`
 	err := r.pool.QueryRow(ctx, query, pair).Scan(
 		&quote.ID,
 		&quote.Pair,
 		&quote.Price,
 		&quote.UpdatedAt,
-		&quote.Status)
+		&quote.Status,
+		&quote.CreatedAt,
+	)
 	return &quote, err
 }
 
@@ -70,7 +76,7 @@ func (r *Repository) UpdateQuote(ctx context.Context, q *domain.Quote) error {
 		return fmt.Errorf("failed to update quote, %w", err)
 	}
 	if res.RowsAffected() == 0 {
-		return fmt.Errorf("quote %d not found", q.ID)
+		return fmt.Errorf("quote %s not found", q.Pair)
 	}
 	return nil
 }
@@ -90,26 +96,16 @@ func (r *Repository) UpdateStatus(ctx context.Context, pair string, status strin
 	return nil
 }
 
-func (r *Repository) GetToUpdateQuotes(ctx context.Context) ([]domain.Quote, error) {
+func (r *Repository) GetToUpdateQuote(ctx context.Context) (domain.Quote, error) {
 	query := `
-	SELECT pair FROM quotes
-	WHERE status IN ('pending', 'failed')
-	ORDER BY updated_at
-	LIMIT 10
+	SELECT id, pair FROM quotes
+	WHERE status = 'pending'
+	ORDER BY created_at
 	`
-	rows, err := r.pool.Query(ctx, query)
+	quote := domain.Quote{}
+	err := r.pool.QueryRow(ctx, query).Scan(&quote.ID, &quote.Pair)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get pending quotes: %w", err)
+		return domain.Quote{}, fmt.Errorf("failed to get quote to update: %w", err)
 	}
-	defer rows.Close()
-	quotes := []domain.Quote{}
-	for rows.Next() {
-		quote := domain.Quote{}
-		if err := rows.Scan(&quote.Pair); err != nil {
-			return nil, fmt.Errorf("failed to parse quote to struct, err %w", err)
-		}
-		quotes = append(quotes, quote)
-	}
-
-	return quotes, nil
+	return quote, nil
 }

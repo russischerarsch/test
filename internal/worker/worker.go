@@ -17,7 +17,7 @@ import (
 func RunPriceUpdater(
 	ctx context.Context,
 	repository service.Repository,
-	client quotespb.QuotesClient,
+	client http.Client,
 	apiKey string,
 ) error {
 	ticker := time.NewTicker(10 * time.Second)
@@ -36,13 +36,13 @@ func RunPriceUpdater(
 func updatePrices(
 	ctx context.Context,
 	repository service.Repository,
-	client quotespb.QuotesClient,
+	client http.Client,
 	apiKey string,
 ) {
 	queryCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	quotes, err := repository.GetToUpdateQuotes(queryCtx)
+	quote, err := repository.GetToUpdateQuote(queryCtx)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return
@@ -51,11 +51,10 @@ func updatePrices(
 		return
 	}
 
-	for _, v := range quotes {
-		if err := updateQuote(ctx, repository, client, apiKey, v.Pair); err != nil {
-			log.Printf("pair %s: %v", v.Pair, err)
-		}
+	if err := updateQuote(ctx, repository, client, apiKey, &quote); err != nil {
+		log.Printf("pair %s: %v", quote.Pair, err)
 	}
+
 }
 
 func updateQuote(
@@ -63,7 +62,7 @@ func updateQuote(
 	repository service.Repository,
 	client http.Client,
 	apiKey string,
-	pair string,
+	q *domain.Quote,
 ) error {
 
 	childCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
@@ -71,7 +70,7 @@ func updateQuote(
 
 	URL := fmt.Sprintf(
 		"http://api.exchangeratesapi.io/v1/latest?access_key=%s&base=%s&symbols=%s",
-		apiKey, pair[:3], pair[3:],
+		apiKey, q.Pair[:3], q.Pair[3:],
 	)
 
 	req, err := http.NewRequestWithContext(childCtx, http.MethodGet, URL, nil)
@@ -90,36 +89,40 @@ func updateQuote(
 	if err := json.NewDecoder(r.Body).Decode(&response); err != nil {
 		return fmt.Errorf("failed to decode response: %w", err)
 	}
-	quote, err := toRates(response)
-	if err != nil {
-		return fmt.Errorf("parse response: %w", err)
-	}
-
-	if err := repository.UpdateQuote(childCtx, quote); err != nil {
-		return fmt.Errorf("update quote: %w", err)
-	}
-	return nil
-}
-
-func toRates(info domain.Info) (*domain.Quote, error) {
-	if !info.Success {
-		if info.Error != nil {
-			return nil, fmt.Errorf("api error %d: %s", info.Error.Code, info.Error.Info)
+	if !response.Success {
+		if response.Error != nil {
+			return fmt.Errorf(
+				"API error %d: %s",
+				response.Error.Code,
+				response.Error.Info,
+			)
 		}
-		return nil, fmt.Errorf("api returned success=false")
+		return errors.New("API request failed")
 	}
-	if len(info.Rates) == 0 {
-		return nil, fmt.Errorf("empty rates")
+	if !response.Success {
+
+		if response.Error != nil {
+			return fmt.Errorf("api error %d: %s", response.Error.Code, response.Error.Info)
+		}
+		return fmt.Errorf("api returned success=false")
+	}
+	if len(response.Rates) == 0 {
+		return fmt.Errorf("empty rates")
 	}
 
 	now := time.Now()
 	var rate domain.Quote
-	for currency, value := range info.Rates {
+	for currency, value := range response.Rates {
 		rate = domain.Quote{
+			ID:        q.ID,
 			Pair:      currency,
-			Price:     value,
-			UpdatedAt: now,
+			Price:     &value,
+			UpdatedAt: &now,
 		}
 	}
-	return &rate, nil
+
+	if err := repository.UpdateQuote(childCtx, &rate); err != nil {
+		return fmt.Errorf("update quote: %w", err)
+	}
+	return nil
 }

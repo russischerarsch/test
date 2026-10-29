@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 )
 
 type Service interface {
@@ -47,6 +48,9 @@ func (h *Handlers) CreateQuote(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(err, domain.ErrInvalidPairFormat) {
 			writeJSONError(w, http.StatusBadRequest, "invalid format")
 			return
+		} else if errors.Is(err, domain.ErrAlreadyExists) {
+			writeJSONError(w, http.StatusConflict, "pair already exists")
+			return
 		}
 		writeJSONError(w, http.StatusInternalServerError, "internal error")
 		log.Printf("failed to create quote, err %v", err)
@@ -73,6 +77,7 @@ func (h *Handlers) GetById(w http.ResponseWriter, r *http.Request) {
 		log.Printf("failed to get quote, err %v", err)
 		return
 	}
+	quote.Pair = strings.ToUpper(quote.Pair)
 	writeJSON(w, http.StatusOK, quote)
 }
 
@@ -85,13 +90,17 @@ func (h *Handlers) GetLatestQuote(w http.ResponseWriter, r *http.Request) {
 	quote, err := h.service.GetLatestQuote(r.Context(), pair)
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
-			writeJSONError(w, http.StatusNotFound, "quotes not found")
+			writeJSONError(w, http.StatusNotFound, "quote not found")
+			return
+		} else if errors.Is(err, domain.ErrInvalidPair) {
+			writeJSONError(w, http.StatusBadRequest, "invalid pair format")
 			return
 		}
 		writeJSONError(w, http.StatusInternalServerError, "internal error")
 		log.Printf("failed to find quote, err %v", err)
 		return
 	}
+	quote.Pair = strings.ToUpper(quote.Pair)
 	writeJSON(w, http.StatusOK, quote)
 }
 
