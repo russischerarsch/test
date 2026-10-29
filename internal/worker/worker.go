@@ -1,99 +1,107 @@
 package worker
 
 import (
+	quotespb "PlataTest/contracts"
 	"PlataTest/internal/domain"
-	"PlataTest/internal/repository"
+	"PlataTest/internal/service"
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
-	"net/http"
-	"os"
 	"time"
-
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func NewPriceUpdater(ctx context.Context, pool *pgxpool.Pool) error {
+func RunPriceUpdater(
+	ctx context.Context,
+	repository service.Repository,
+	client quotespb.QuotesClient,
+	apiKey string,
+) error {
 	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			childCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-			quotes, err := repository.GetPendingQuotes(childCtx, pool)
-			if err != nil {
-				log.Printf("failed to send query, err %v", err)
-				continue
-			}
-			for _, v := range quotes {
-
-			}
+			updatePrices(ctx, repository, client, apiKey)
 		}
 	}
 }
-func FetchPrice(ctx context.Context, pair string) (float64, error) {
-	first := pair[:3]
-	second := pair[3:]
-	var ApiKey string
-	if ApiKey = os.Getenv("API_KEY"); ApiKey == "" {
-		ApiKey = "84343d3b62c279fb5c47f52fbdf034ae"
-		// подобный ключ нужно хранить в переменной окружения. В проде упал бы с ошибкой чтения
-	}
-	url := fmt.Sprintf("http://api.exchangeratesapi.io/v1/latest?access_key=%s&base=%s&symbols=%s", ApiKey, first, second)
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return 0, fmt.Errorf("create request: %w", err)
 
-	}
-	resp, err := q.client.Do(req)
-	if err != nil {
-		return 0, domain.ErrAPINotAvailable
-	}
-	if resp.StatusCode != http.StatusOK {
-		return 0, fmt.Errorf("API service returned %d status code", resp.StatusCode)
-	}
-	defer resp.Body.Close()
+func updatePrices(
+	ctx context.Context,
+	repository service.Repository,
+	client quotespb.QuotesClient,
+	apiKey string,
+) {
+	queryCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
 
-	var info struct {
-		Success bool               `json:"success"`
-		Rates   map[string]float64 `json:"rates"`
-		Error   *struct {
-			Code int    `json:"code"`
-			Info string `json:"info"`
-		} `json:"error"`
+	quotes, err := repository.GetToUpdateQuotes(queryCtx)
+	if err != nil {
+		log.Printf("failed to get pending quotes, err %v", err)
+		return
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
-		return 0, err
+
+	for _, v := range quotes {
+		if err := updateQuote(ctx, repository, client, apiKey, v.Pair); err != nil {
+			log.Printf("pair %s: %v", v.Pair, err)
+		}
 	}
+}
+
+func updateQuote(
+	ctx context.Context,
+	repository service.Repository,
+	client quotespb.QuotesClient,
+	apiKey string,
+	pair string,
+) error {
+
+	childCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+
+	URL := fmt.Sprintf(
+		"http://api.exchangeratesapi.io/v1/latest?access_key=%s&base=%s&symbols=%s",
+		apiKey, pair[:3], pair[3:],
+	)
+
+	resp, err := client.FetchPrice(childCtx, &quotespb.QuoteRequest{URL: URL})
+	if err != nil {
+		return fmt.Errorf("fetch price: %w", err)
+	}
+
+	quote, err := toRates(resp)
+	if err != nil {
+		return fmt.Errorf("parse response: %w", err)
+	}
+
+	if err := repository.UpdateQuote(childCtx, quote); err != nil {
+		return fmt.Errorf("update quote: %w", err)
+	}
+	return nil
+}
+
+func toRates(info *quotespb.QuoteResponse) (*domain.Quote, error) {
 	if !info.Success {
 		if info.Error != nil {
-			return 0, fmt.Errorf(
-				"API error %d: %s",
-				info.Error.Code,
-				info.Error.Info,
-			)
+			return nil, fmt.Errorf("api error %d: %s", info.Error.Code, info.Error.Info)
 		}
-		return 0, errors.New("API request failed")
+		return nil, fmt.Errorf("api returned success=false")
 	}
-	price, ok := info.Rates[second]
-	if !ok {
-		return 0, fmt.Errorf("rate %s was not found\n", second)
-	}
-	return price, nil
-}
-func validatePair(pair string) error {
-	if len(pair) != 6 {
-		return fmt.Errorf("pair must have 6 letters: %w", domain.ErrInvalidPairFormat)
+	if len(info.Rates) == 0 {
+		return nil, fmt.Errorf("empty rates")
 	}
 
-	for _, r := range pair {
-		if r < 'A' || r > 'Z' {
-			return fmt.Errorf("pair must contain uppercase letters: %w", domain.ErrInvalidPairFormat)
+	now := time.Now()
+	var rate domain.Quote
+	for currency, value := range info.Rates {
+		rate = domain.Quote{
+			Pair:      currency,
+			Price:     value,
+			UpdatedAt: now,
 		}
 	}
-
-	return nil
+	return &rate, nil
 }

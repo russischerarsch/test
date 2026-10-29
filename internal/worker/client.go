@@ -7,10 +7,16 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-func SetupClient() {
-	grpc.NewClient(
+func SetupClient() (quotespb.QuotesClient, error) {
+	conn, err := grpc.NewClient(
 		"localhost:50051",
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
-	quotespb.NewQuotesClient()
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+
+	client := quotespb.NewQuotesClient(conn)
+	return client, nil
 }

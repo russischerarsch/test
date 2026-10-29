@@ -4,7 +4,6 @@ import (
 	"PlataTest/internal/domain"
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -59,41 +58,41 @@ func (r *Repository) GetQuoteById(ctx context.Context, id int) (*domain.Quote, e
 		&quote.Status)
 	return &quote, err
 }
-func (r *Repository) UpdateQuote(ctx context.Context, id int, price float64) error {
+func (r *Repository) UpdateQuote(ctx context.Context, q *domain.Quote) error {
 	query := `
 	UPDATE quotes 
 	SET price = $1, updated_at = $2, status = 'completed'
 	WHERE id = $3
 	`
-	res, err := r.pool.Exec(ctx, query, price, time.Now(), id)
+	res, err := r.pool.Exec(ctx, query, q.Price, q.UpdatedAt, q.ID)
 	if err != nil {
 		return fmt.Errorf("failed to update quote, %w", err)
 	}
 	if res.RowsAffected() == 0 {
-		return fmt.Errorf("quote %d not found", id)
+		return fmt.Errorf("quote %d not found", q.ID)
 	}
 	return nil
 }
-func (r *Repository) UpdateStatus(ctx context.Context, id int, status string) error {
+func (r *Repository) UpdateStatus(ctx context.Context, pair string, status string) error {
 	query := `
 	UPDATE quotes 
 	SET status = $1
-	WHERE id = $2
+	WHERE pair = $2
 	`
-	res, err := r.pool.Exec(ctx, query, status, id)
+	res, err := r.pool.Exec(ctx, query, status, pair)
 	if err != nil {
 		return fmt.Errorf("update status: %w", err)
 	}
 	if res.RowsAffected() == 0 {
-		return fmt.Errorf("quote %d not found", id)
+		return fmt.Errorf("quote %v not found", pair)
 	}
 	return nil
 }
 
-func GetPendingQuotes(ctx context.Context, pool *pgxpool.Pool) ([]domain.Quote, error) {
+func (r *Repository) GetToUpdateQuotes(ctx context.Context) ([]domain.Quote, error) {
 	query := `
 	SELECT pair FROM quotes
-	WHERE status = 'pending'
+	WHERE status = 'pending' OR 'failed'
 	ORDER BY created_at
 	LIMIT 10
 	`
