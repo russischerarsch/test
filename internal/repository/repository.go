@@ -89,3 +89,27 @@ func (r *Repository) UpdateStatus(ctx context.Context, id int, status string) er
 	}
 	return nil
 }
+
+func GetPendingQuotes(ctx context.Context, pool *pgxpool.Pool) ([]domain.Quote, error) {
+	query := `
+	SELECT pair FROM quotes
+	WHERE status = 'pending'
+	ORDER BY created_at
+	LIMIT 10
+	`
+	rows, err := r.pool.Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get pending quotes: %w", err)
+	}
+	defer rows.Close()
+	quotes := []domain.Quote{}
+	for rows.Next() {
+		quote := domain.Quote{}
+		if err := rows.Scan(&quote.Pair); err != nil {
+			return nil, fmt.Errorf("failed to parse quote to struct, err %w", err)
+		}
+		quotes = append(quotes, quote)
+	}
+
+	return quotes, nil
+}

@@ -23,7 +23,7 @@ func main() {
 	ctx := context.Background()
 	pool, err := dbconnection.CreateConnection(ctx, url)
 	if err != nil {
-		fmt.Println("failed to connect postgres", err)
+		log.Printf("failed to connect postgres: %v", err)
 		return
 	}
 	m, err := migrate.New("file://migrations", url)
