@@ -5,9 +5,12 @@ import (
 	"PlataTest/internal/domain"
 	"PlataTest/internal/service"
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
 func RunPriceUpdater(
@@ -40,6 +43,9 @@ func updatePrices(
 
 	quotes, err := repository.GetToUpdateQuotes(queryCtx)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return
+		}
 		log.Printf("failed to get pending quotes, err %v", err)
 		return
 	}

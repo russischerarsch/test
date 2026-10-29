@@ -4,6 +4,7 @@ import (
 	"PlataTest/internal/domain"
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -20,11 +21,11 @@ func CreateRepository(pool *pgxpool.Pool) *Repository {
 func (r *Repository) CreateQuote(ctx context.Context, pair string) (int, error) {
 	var id int
 	query := `
-	INSERT INTO quotes (pair)
-	VALUES ($1)
+	INSERT INTO quotes (pair, created_at)
+	VALUES ($1, $2)
 	RETURNING id
 	`
-	err := r.pool.QueryRow(ctx, query, pair).Scan(&id)
+	err := r.pool.QueryRow(ctx, query, pair, time.Now()).Scan(&id)
 	return id, err
 }
 func (r *Repository) GetLatestQuote(ctx context.Context, pair string) (*domain.Quote, error) {
@@ -92,8 +93,8 @@ func (r *Repository) UpdateStatus(ctx context.Context, pair string, status strin
 func (r *Repository) GetToUpdateQuotes(ctx context.Context) ([]domain.Quote, error) {
 	query := `
 	SELECT pair FROM quotes
-	WHERE status = 'pending' OR 'failed'
-	ORDER BY created_at
+	WHERE status IN ('pending', 'failed')
+	ORDER BY updated_at
 	LIMIT 10
 	`
 	rows, err := r.pool.Query(ctx, query)

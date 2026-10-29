@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -36,7 +37,8 @@ func (q *QuoteService) CreateQuote(ctx context.Context, pair string) (int, error
 		return 0, domain.ErrInvalidPairFormat
 	}
 
-	id, err := q.repo.CreateQuote(ctx, pair)
+	pairLC := strings.ToLower(pair)
+	id, err := q.repo.CreateQuote(ctx, pairLC)
 	if err != nil {
 		return 0, err
 	}
