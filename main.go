@@ -11,6 +11,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
@@ -47,9 +48,8 @@ func main() {
 	ser := service.CreateService(rep)
 	handlers := transport.NewHandler(ser)
 	r := transport.SetupRouter(handlers)
-	client, err := worker.SetupClient()
-	if err != nil {
-		log.Fatalf("failed to run client, err %v", err)
+	client := http.Client{
+		Timeout: 10 * time.Second,
 	}
 	go func() {
 		worker.RunPriceUpdater(

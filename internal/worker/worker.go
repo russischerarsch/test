@@ -1,13 +1,14 @@
 package worker
 
 import (
-	quotespb "PlataTest/contracts"
 	"PlataTest/internal/domain"
 	"PlataTest/internal/service"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
+	"net/http"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -60,7 +61,7 @@ func updatePrices(
 func updateQuote(
 	ctx context.Context,
 	repository service.Repository,
-	client quotespb.QuotesClient,
+	client http.Client,
 	apiKey string,
 	pair string,
 ) error {
@@ -73,12 +74,23 @@ func updateQuote(
 		apiKey, pair[:3], pair[3:],
 	)
 
-	resp, err := client.FetchPrice(childCtx, &quotespb.QuoteRequest{URL: URL})
+	req, err := http.NewRequestWithContext(childCtx, http.MethodGet, URL, nil)
 	if err != nil {
-		return fmt.Errorf("fetch price: %w", err)
+		return fmt.Errorf("failed to create req: %w", err)
 	}
-
-	quote, err := toRates(resp)
+	r, err := client.Do(req)
+	if err != nil {
+		return domain.ErrAPINotAvailable
+	}
+	if r.StatusCode != http.StatusOK {
+		return fmt.Errorf("API service returned %d status code", r.StatusCode)
+	}
+	defer r.Body.Close()
+	var response domain.Info
+	if err := json.NewDecoder(r.Body).Decode(&response); err != nil {
+		return fmt.Errorf("failed to decode response: %w", err)
+	}
+	quote, err := toRates(response)
 	if err != nil {
 		return fmt.Errorf("parse response: %w", err)
 	}
@@ -89,7 +101,7 @@ func updateQuote(
 	return nil
 }
 
-func toRates(info *quotespb.QuoteResponse) (*domain.Quote, error) {
+func toRates(info domain.Info) (*domain.Quote, error) {
 	if !info.Success {
 		if info.Error != nil {
 			return nil, fmt.Errorf("api error %d: %s", info.Error.Code, info.Error.Info)

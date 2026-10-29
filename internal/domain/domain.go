@@ -9,3 +9,12 @@ type Quote struct {
 	UpdatedAt time.Time
 	Status    string
 }
+
+type info struct {
+	Success bool               `json:"success"`
+	Rates   map[string]float64 `json:"rates"`
+	Error   *struct {
+		Code int    `json:"code"`
+		Info string `json:"info"`
+	} `json:"error"`
+}
