@@ -1,4 +1,4 @@
-package http
+package transport
 
 import (
 	"PlataTest/internal/domain"
@@ -19,6 +19,9 @@ type Service interface {
 type Handlers struct {
 	service Service
 }
+type IDJSON struct {
+	ID int `json:"id"`
+}
 
 func NewHandler(service Service) *Handlers {
 	return &Handlers{service: service}
@@ -26,6 +29,9 @@ func NewHandler(service Service) *Handlers {
 
 type errorResponse struct {
 	Message string `json:"error"`
+}
+type Request struct {
+	Pair string `json:"pair"`
 }
 
 func (h *Handlers) CreateQuote(w http.ResponseWriter, r *http.Request) {
@@ -46,7 +52,8 @@ func (h *Handlers) CreateQuote(w http.ResponseWriter, r *http.Request) {
 		log.Printf("failed to create quote, err %v", err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, id)
+
+	writeJSON(w, http.StatusCreated, IDJSON{ID: id})
 }
 
 func (h *Handlers) GetById(w http.ResponseWriter, r *http.Request) {
