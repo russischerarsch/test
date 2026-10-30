@@ -44,7 +44,7 @@ func main() {
 	m.Close()
 	defer pool.Close()
 	rep := repository.CreateRepository(pool)
-	ser := service.CreateService(rep)
+	ser := service.NewService(rep)
 	handlers := transport.NewHandler(ser)
 	r := transport.SetupRouter(handlers)
 	client := http.Client{

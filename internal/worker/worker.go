@@ -100,7 +100,6 @@ func updateQuote(
 		return errors.New("API request failed")
 	}
 	if !response.Success {
-
 		if response.Error != nil {
 			return fmt.Errorf("api error %d: %s", response.Error.Code, response.Error.Info)
 		}

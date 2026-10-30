@@ -92,7 +92,7 @@ func (h *Handlers) GetLatestQuote(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(err, domain.ErrNotFound) {
 			writeJSONError(w, http.StatusNotFound, "quote not found")
 			return
-		} else if errors.Is(err, domain.ErrInvalidPair) {
+		} else if errors.Is(err, domain.ErrInvalidPairFormat) {
 			writeJSONError(w, http.StatusBadRequest, "invalid pair format")
 			return
 		}
