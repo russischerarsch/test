@@ -23,6 +23,7 @@ func main() {
 	if url == "" {
 		url = "postgres://admin:secret@localhost:5432/quotes?sslmode=disable"
 	}
+
 	apiKey := os.Getenv("API_KEY")
 	if apiKey == "" {
 		apiKey = "cf1c2c2af99770437a22aeb1e7b2d469"
@@ -43,7 +44,7 @@ func main() {
 	}
 	m.Close()
 	defer pool.Close()
-	rep := repository.CreateRepository(pool)
+	rep := repository.NewRepository(pool)
 	ser := service.NewService(rep)
 	handlers := transport.NewHandler(ser)
 	r := transport.SetupRouter(handlers)

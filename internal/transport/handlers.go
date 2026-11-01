@@ -8,7 +8,6 @@ import (
 	"log"
 	"net/http"
 	"strconv"
-	"strings"
 )
 
 type Service interface {
@@ -77,7 +76,6 @@ func (h *Handlers) GetById(w http.ResponseWriter, r *http.Request) {
 		log.Printf("failed to get quote, err %v", err)
 		return
 	}
-	quote.Pair = strings.ToUpper(quote.Pair)
 	writeJSON(w, http.StatusOK, quote)
 }
 
@@ -100,7 +98,6 @@ func (h *Handlers) GetLatestQuote(w http.ResponseWriter, r *http.Request) {
 		log.Printf("failed to find quote, err %v", err)
 		return
 	}
-	quote.Pair = strings.ToUpper(quote.Pair)
 	writeJSON(w, http.StatusOK, quote)
 }
 

@@ -36,7 +36,6 @@ func (q *QuoteService) CreateQuote(ctx context.Context, pair string) (int, error
 	if err != nil {
 		return 0, err
 	}
-
 	return id, nil
 }
 
@@ -49,7 +48,7 @@ func (q *QuoteService) GetQuote(ctx context.Context, id int) (*domain.Quote, err
 
 		return nil, err
 	}
-
+	quote.Pair = strings.ToUpper(quote.Pair)
 	return quote, nil
 }
 
@@ -65,7 +64,7 @@ func (q *QuoteService) GetLatestQuote(ctx context.Context, pair string) (*domain
 		}
 		return nil, err
 	}
-
+	quote.Pair = strings.ToUpper(quote.Pair)
 	return quote, nil
 }
 func validatePair(pair string) error {
