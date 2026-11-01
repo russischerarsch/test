@@ -21,7 +21,6 @@ func TestCreateQuote_success(t *testing.T) {
 	id, err := svc.CreateQuote(t.Context(), "EURUSD")
 
 	require.NoError(t, err)
-
 	assert.Equal(t, 1, id)
 }
 

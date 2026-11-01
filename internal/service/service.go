@@ -65,6 +65,7 @@ func (q *QuoteService) GetLatestQuote(ctx context.Context, pair string) (*domain
 		}
 		return nil, err
 	}
+
 	return quote, nil
 }
 func validatePair(pair string) error {
