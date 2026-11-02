@@ -18,7 +18,7 @@ type httpClient struct {
 func NewHttpClient(url string) *httpClient {
 	return &httpClient{
 		client: &http.Client{
-			Timeout: 10 * time.Second,
+			Timeout: 30 * time.Second,
 		},
 		baseURL: url,
 	}
@@ -52,18 +52,24 @@ func Do[T any](ctx context.Context, c *httpClient, path, method string, reqBody 
 		return nil, fmt.Errorf("failed to send request, err %w", err)
 	}
 	defer resp.Body.Close()
-
-	r := &Response[T]{Code: resp.StatusCode}
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read body response, err %w", err)
+	}
+	r := &Response[T]{Code: resp.StatusCode, Body: raw}
 	if r.Code != http.StatusOK && r.Code != http.StatusCreated {
-		r.Body, err = json.Marshal(resp)
-		if err != nil {
-			return r, fmt.Errorf("failed to marshal response body, err %w", err)
-		}
 		return r, nil
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&r.Data); err != nil {
+	if err := json.Unmarshal(raw, &r.Data); err != nil {
 		return r, fmt.Errorf("failed to decode response data to struct, err %w", err)
 	}
 
 	return r, nil
+}
+
+func Post[T any](ctx context.Context, c *httpClient, path, method string, reqBody interface{}) (*Response[T], error) {
+	return Do[T](ctx, c, path, method, reqBody)
+}
+func Get[T any](ctx context.Context, c *httpClient, path, method string, reqBody interface{}) (*Response[T], error) {
+	return Do[T](ctx, c, path, method, reqBody)
 }

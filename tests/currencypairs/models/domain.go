@@ -1,4 +1,6 @@
-package e2e
+package models
+
+import "time"
 
 type CreatePairReq struct {
 	Pair string `json:"Pair"`
@@ -11,6 +13,16 @@ type CreatePairResp struct {
 type Quote struct {
 	ID   string `json:"id"`
 	Pair string `json:"pair"`
+	Rate float
+}
+
+type Quote struct {
+	ID        string `json:"id"`
+	Pair      string `json:"pair"`
+	Price     *float64
+	UpdatedAt *time.Time
+	CreatedAt time.Time
+	Status    string
 }
 
 type ErrorResp struct {
