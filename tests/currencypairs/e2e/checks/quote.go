@@ -4,8 +4,10 @@ import (
 	"PlataTest/tests/currencypairs/models"
 	"context"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -25,16 +27,25 @@ func QuoteResponseMatches(t *testing.T, expPair, expID string, got *models.Quote
 
 }
 
-func CheckQuoteStatus(t *testing.T, ctx context.Context, pool *pgxpool.Pool, ID, expPair string) {
+func CheckQuoteStatus(t *testing.T, ctx context.Context, pool *pgxpool.Pool, ID, expPair, expStatus string) {
 	t.Helper()
-	query := `
-	SELECT pair, status, price FROM quotes 
-	WHERE id = $1
-	`
-	var quote *models.Quote
-	err := pool.QueryRow(ctx, query, ID).Scan(&quote.Pair, &quote.Status, &quote.Price)
-	require.NoError(t, err)
+	var quote models.Quote
+	require.Eventually(t, func() bool {
+		query := `
+		SELECT pair, status, price FROM quotes 
+		WHERE id = $1
+		`
 
+		err := pool.QueryRow(ctx, query, ID).Scan(&quote.Pair, &quote.Status, &quote.Price)
+		if err != nil {
+			t.Logf("failed to get quote, err %v", err)
+			return false
+		}
+		return quote.Status == expStatus
+
+	}, 12*time.Second, 1*time.Second)
+	assert.Equal(t, expPair, quote.Pair)
+	assert.Greater(t, quote.Price, float64(0))
 }
 
 func PairInDB(t *testing.T, ctx context.Context, pool *pgxpool.Pool, expPair, ID string) {

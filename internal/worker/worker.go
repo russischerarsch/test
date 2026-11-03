@@ -82,6 +82,9 @@ func updateQuote(
 		return domain.ErrAPINotAvailable
 	}
 	if r.StatusCode != http.StatusOK {
+		if err := repository.UpdateStatus(ctx, q.Pair, "failed"); err != nil {
+			log.Printf("failed to update status to 'failed', err %v", err)
+		}
 		return fmt.Errorf("API service returned %d status code", r.StatusCode)
 	}
 	defer r.Body.Close()

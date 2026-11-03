@@ -45,3 +45,9 @@ func (s *QuoteSuite) TearDownSuite() {
 		s.Pool.Close()
 	}
 }
+func (s *QuoteSuite) DeleteQuote(id string) {
+	_, err := s.Pool.Exec(context.Background(), `DELETE FROM quotes WHERE id = $1`, id)
+	if err != nil {
+		s.T().Logf("failed to delete quote %s: %v", id, err)
+	}
+}

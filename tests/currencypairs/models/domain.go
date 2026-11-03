@@ -7,13 +7,7 @@ type CreatePairReq struct {
 }
 
 type CreatePairResp struct {
-	ID int64 `json:"id"`
-}
-
-type Quote struct {
-	ID   string `json:"id"`
-	Pair string `json:"pair"`
-	Rate float
+	ID string `json:"id"`
 }
 
 type Quote struct {
